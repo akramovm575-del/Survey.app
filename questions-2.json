@@ -1,0 +1,77 @@
+[
+  {
+    "text": "My friends help me when I face academic difficulties.",
+    "options": ["Never (0)", "Rarely (1)", "Sometimes (2)", "Often (3)", "Always (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "I feel comfortable sharing personal problems with my close friends.",
+    "options": ["Never (0)", "Rarely (1)", "Sometimes (2)", "Often (3)", "Always (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "Having supportive friends motivates me to do better academically.",
+    "options": ["Strongly disagree (0)", "Disagree (1)", "Neutral (2)", "Agree (3)", "Strongly agree (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "I find it hard to find a friend I can open up to about my struggles.",
+    "options": ["Always (4)", "Often (3)", "Sometimes (2)", "Rarely (1)", "Never (0)"],
+    "scores": [4, 3, 2, 1, 0]
+  },
+  {
+    "text": "Arguments or conflicts with friends distract me from my studies.",
+    "options": ["Always (4)", "Often (3)", "Sometimes (2)", "Rarely (1)", "Never (0)"],
+    "scores": [4, 3, 2, 1, 0]
+  },
+  {
+    "text": "My friends cheer me up when I feel like giving up on my studies.",
+    "options": ["Never (0)", "Rarely (1)", "Sometimes (2)", "Often (3)", "Always (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "I feel emotionally stable when I have strong friendships.",
+    "options": ["Strongly disagree (0)", "Disagree (1)", "Neutral (2)", "Agree (3)", "Strongly agree (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "I talk about academic challenges with my close friends.",
+    "options": ["Never (0)", "Rarely (1)", "Sometimes (2)", "Often (3)", "Always (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "Unresolved conflicts with peers make me feel anxious and unfocused.",
+    "options": ["Not at all (0)", "Slightly (1)", "Moderately (2)", "Significantly (3)", "Extremely (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "My friends help me feel like I belong at university.",
+    "options": ["Never (0)", "Rarely (1)", "Sometimes (2)", "Often (3)", "Always (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "I feel lonely and isolated when I lack close friendships.",
+    "options": ["Always (4)", "Often (3)", "Sometimes (2)", "Rarely (1)", "Never (0)"],
+    "scores": [4, 3, 2, 1, 0]
+  },
+  {
+    "text": "Talking to friends about my worries improves how I feel emotionally.",
+    "options": ["Strongly disagree (0)", "Disagree (1)", "Neutral (2)", "Agree (3)", "Strongly agree (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "Friendship conflicts reduce my desire to attend or engage with classes.",
+    "options": ["Not at all (0)", "Slightly (1)", "Moderately (2)", "Significantly (3)", "Extremely (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "I feel safe being honest and vulnerable with my closest friends.",
+    "options": ["Never (0)", "Rarely (1)", "Sometimes (2)", "Often (3)", "Always (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  },
+  {
+    "text": "Overall, my friendships have a positive effect on my academic performance.",
+    "options": ["Strongly disagree (0)", "Disagree (1)", "Neutral (2)", "Agree (3)", "Strongly agree (4)"],
+    "scores": [0, 1, 2, 3, 4]
+  }
+]
