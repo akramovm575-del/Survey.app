@@ -1,21 +1,23 @@
 # ============================================================
-# Peer Social Support & Academic Performance Survey
+# Peer Social Support Survey — Streamlit Web App
 # Module: Fundamentals of Programming, 4BUIS008C
 # ============================================================
 
+import streamlit as st
 import json
 import csv
+import io
 import re
 import os
 from datetime import datetime
 
-# ── Variable types (all 10 required types demonstrated) ─────
-survey_title   = "Peer Social Support Survey"   # str
-version        = 1.0                             # float
-question_count = 15                              # int
-survey_active  = True                            # bool
-score_ranges   = [0, 13, 25, 37, 43, 49, 55]    # list
-state_labels   = (                               # tuple
+# ── Variable types (all 10 required types) ───────────────────
+survey_title   = "Peer Social Support Survey"     # str
+version        = 1.0                               # float
+question_count = 15                                # int
+survey_active  = True                              # bool
+score_ranges   = [0, 13, 25, 37, 43, 49, 55]      # list
+state_labels   = (                                 # tuple
     "Very Low Support",
     "Low Support",
     "Moderate Support",
@@ -24,10 +26,10 @@ state_labels   = (                               # tuple
     "Excellent Support",
     "Outstanding Support"
 )
-valid_choices  = range(1, 4)                     # range
-results_store  = {}                              # dict
-completed_ids  = set()                           # set
-locked_fields  = frozenset({"title", "version"}) # frozenset
+valid_choices  = range(1, 6)                       # range
+results_store  = {}                                # dict
+completed_ids  = set()                             # set
+locked_fields  = frozenset({"title", "version"})   # frozenset
 
 # ── Questions embedded in code ───────────────────────────────
 QUESTIONS = [
@@ -108,395 +110,618 @@ QUESTIONS = [
     },
 ]
 
-QUESTIONS_FILE = "questions.json"
 
-
-# ── FUNCTION 1: Print the main menu ─────────────────────────
-def show_menu():
-    print("\n" + "=" * 58)
-    print(f"  {survey_title}")
-    print(f"  Version: {version}")
-    print("=" * 58)
-    print("  1. Start a new survey")
-    print("  2. Load existing results from file")
-    print("  3. View psychological states")
-    print("  4. View last result")
-    print("  5. Exit")
-    print("=" * 58)
-    print("  Tip: Enter 0 at any time to return to this menu.")
-    print("=" * 58)
-
-
-# ── FUNCTION 2: Save questions to external file ──────────────
-def save_questions_to_file():
-    if not os.path.exists(QUESTIONS_FILE):
-        with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(QUESTIONS, f, indent=2, ensure_ascii=False)
-        print(f"  Questions saved to {QUESTIONS_FILE}")
-
-
-# ── FUNCTION 3: Load questions from external file ────────────
-def load_questions_from_file():
-    if os.path.exists(QUESTIONS_FILE):
-        with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+# ── FUNCTION 1: Load questions from file or use embedded ─────
+def load_questions():
+    if os.path.exists("questions.json"):
+        with open("questions.json", "r", encoding="utf-8") as f:
             return json.load(f)
     return QUESTIONS
 
 
-# ── FUNCTION 4: Validate participant name ────────────────────
-def get_valid_name():
-    # while loop for input validation
-    while True:
-        name = input("  Full name (or 0 to go Home): ").strip()
-        if name == "0":
-            return None                          # signal: go back to menu
-        if re.fullmatch(r"[A-Za-z][A-Za-z\s'\-]*", name) and len(name) >= 2:
-            return name
-        print("  X Only letters, spaces, hyphens, apostrophes allowed.")
+# ── FUNCTION 2: Validate name ────────────────────────────────
+def validate_name(name):
+    return (bool(re.fullmatch(r"[A-Za-z][A-Za-z\s'\-]*", name.strip()))
+            and len(name.strip()) >= 2)
 
 
-# ── FUNCTION 5: Validate date of birth ──────────────────────
-def get_valid_dob():
-    while True:
-        dob = input("  Date of birth DD/MM/YYYY (or 0 to go Home): ").strip()
-        if dob == "0":
-            return None
-        if re.fullmatch(r"\d{2}/\d{2}/\d{4}", dob):
-            day   = int(dob[:2])
-            month = int(dob[3:5])
-            year  = int(dob[6:])
-            if 1 <= month <= 12 and 1 <= day <= 31 and 1900 <= year <= 2010:
-                return dob
-        print("  X Invalid date. Use DD/MM/YYYY (e.g. 15/03/2004).")
+# ── FUNCTION 3: Validate date of birth ──────────────────────
+def validate_dob(dob):
+    if not re.fullmatch(r"\d{2}/\d{2}/\d{4}", dob):
+        return False
+    day   = int(dob[:2])
+    month = int(dob[3:5])
+    year  = int(dob[6:])
+    return 1 <= month <= 12 and 1 <= day <= 31 and 1900 <= year <= 2010
 
 
-# ── FUNCTION 6: Validate student ID ─────────────────────────
-def get_valid_student_id():
-    while True:
-        sid = input("  Student ID digits only (or 0 to go Home): ").strip()
-        if sid == "0":
-            return None
-        if sid.isdigit() and len(sid) >= 4:
-            return sid
-        print("  X Student ID must contain digits only (min 4 digits).")
+# ── FUNCTION 4: Validate student ID ─────────────────────────
+def validate_sid(sid):
+    return sid.isdigit() and len(sid) >= 4
 
 
-# ── FUNCTION 7: Interpret total score ────────────────────────
+# ── FUNCTION 5: Interpret total score ────────────────────────
 def interpret_score(score):
     if score <= 12:
         label  = "Very Low Peer Support & Poor Adjustment"
-        advice = "Very limited support. High risk of emotional difficulties."
+        advice = "Very limited support network. High risk of emotional difficulties."
+        emoji  = "🔴"
     elif score <= 24:
         label  = "Low Peer Support & Mild Adjustment Issues"
         advice = "Limited friendships affecting emotional balance."
+        emoji  = "🟠"
     elif score <= 36:
         label  = "Moderate Peer Support & Moderate Adjustment"
-        advice = "Some support present. Occasional emotional challenges."
+        advice = "Some supportive friendships. Occasional emotional challenges."
+        emoji  = "🟡"
     elif score <= 42:
         label  = "Good Peer Support & Good Adjustment"
         advice = "Healthy peer network with positive effects on wellbeing."
+        emoji  = "🟢"
     elif score <= 48:
         label  = "Strong Peer Support & Strong Adjustment"
         advice = "Strong friendships supporting academic and emotional health."
+        emoji  = "🟢"
     elif score <= 54:
         label  = "Excellent Peer Support & Excellent Adjustment"
         advice = "Excellent friendship quality and consistent academic performance."
+        emoji  = "🟢"
     else:
         label  = "Outstanding Peer Support & Outstanding Adjustment"
         advice = "Exceptional peer relationships. Model support environment."
-
-    return {"label": label, "advice": advice}
-
-
-# ── FUNCTION 8: Run the survey ───────────────────────────────
-def run_survey(questions):
-    while True:                          # restart loop
-        print("\n" + "=" * 58)
-        print(f"  {survey_title}  (v{version})")
-        print("=" * 58)
-        print("  Answer honestly. Scale: 0 = lowest, 4 = highest")
-        print("  Enter 0 at any prompt to go back to Home.\n")
-
-        # ── collect participant info ─────────────────────────
-        print("  --- Participant Information ---")
-
-        name = get_valid_name()
-        if name is None:                 # user typed 0
-            return None
-
-        dob = get_valid_dob()
-        if dob is None:
-            return None
-
-        student_id = get_valid_student_id()
-        if student_id is None:
-            return None
-
-        if student_id in completed_ids:
-            print(f"\n  ! ID {student_id} has already completed this survey.")
-            print("  Please use a different ID or load your existing result.")
-            return None
-
-        print(f"\n  Thank you, {name}! Starting survey...")
-        print("  Tip: Enter 0 during questions to Restart from Q1.\n")
-        print("-" * 58)
-
-        answers    = []
-        total      = 0
-        restart    = False
-
-        # for loop — iterates through each question
-        for i in range(len(questions)):
-            q = questions[i]
-            print(f"\n  Q{i + 1} of {len(questions)}. {q['text']}")
-            for j in range(len(q["options"])):
-                print(f"       {j + 1}. {q['options'][j]}")
-            print(f"       0. Restart survey from Q1")
-
-            # while loop — validates each answer
-            while True:
-                try:
-                    choice = int(input(f"  Your answer (0-{len(q['options'])}): "))
-
-                    if choice == 0:          # ── RESTART ──────
-                        print("\n  Restarting survey...\n")
-                        restart = True
-                        break
-
-                    elif 1 <= choice <= len(q["options"]):
-                        score = q["scores"][choice - 1]
-                        answers.append(score)
-                        total += score
-                        break
-
-                    else:
-                        print(f"  X Enter 0 to restart or 1-{len(q['options'])} to answer.")
-
-                except ValueError:
-                    print("  X Please enter a valid number.")
-
-            if restart:
-                break                    # break out of for loop → while True repeats
-
-        if restart:
-            continue                     # go back to top of while True (restart)
-
-        # ── survey completed ─────────────────────────────────
-        percentage     = round((total / (question_count * 4)) * 100, 1)  # float
-        interpretation = interpret_score(total)
-
-        result = {
-            "name":          name,
-            "student_id":    student_id,
-            "date_of_birth": dob,
-            "submitted":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "answers":       answers,
-            "total_score":   total,
-            "percentage":    percentage,
-            "state":         interpretation["label"],
-            "advice":        interpretation["advice"]
-        }
-
-        completed_ids.add(student_id)
-        results_store[student_id] = result
-        return result                    # exit while True
+        emoji  = "🏆"
+    return {"label": label, "advice": advice, "emoji": emoji}
 
 
-# ── FUNCTION 9: Display result on screen ────────────────────
-def display_result(result):
-    print("\n" + "=" * 58)
-    print("  YOUR RESULTS")
-    print("=" * 58)
-    print(f"  Name        : {result['name']}")
-    print(f"  Student ID  : {result['student_id']}")
-    print(f"  Submitted   : {result['submitted']}")
-    print(f"  Total Score : {result['total_score']} / {question_count * 4}")
-    print(f"  Percentage  : {result['percentage']}%")
-    print("-" * 58)
-    print(f"  State  : {result['state']}")
-    print(f"  Advice : {result['advice']}")
-    print("=" * 58)
+# ── FUNCTION 6: Build downloadable TXT content ───────────────
+def build_txt(record):
+    lines = ["=" * 50, f"  {survey_title} - Results", "=" * 50]
+    for key, val in record.items():
+        lines.append(f"  {key}: {val}")
+    lines.append("=" * 50)
+    return "\n".join(lines)
 
 
-# ── FUNCTION 10: Save result (user picks format) ─────────────
-def save_result(result):
-    print("\n  Would you like to save your results?")
-    print("  1. Yes   2. No   0. Home")
-
-    while True:
-        pick = input("  Your choice: ").strip()
-        if pick == "0":
-            return
-        elif pick == "2":
-            print("  Results not saved.")
-            return
-        elif pick == "1":
-            break
-        else:
-            print("  X Enter 0, 1, or 2.")
-
-    print("\n  Choose file format:")
-    print("  1. TXT   2. CSV   3. JSON   0. Home")
-
-    while True:
-        fmt = input("  Your choice: ").strip()
-        if fmt == "0":
-            return
-        elif fmt in ("1", "2", "3"):
-            break
-        print("  X Enter 0, 1, 2, or 3.")
-
-    sid = result["student_id"]
-
-    if fmt == "1":
-        filename = f"result_{sid}.txt"
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write("=" * 58 + "\n")
-            f.write(f"  {survey_title} - Results\n")
-            f.write("=" * 58 + "\n")
-            for key, value in result.items():
-                f.write(f"  {key}: {value}\n")
-            f.write("=" * 58 + "\n")
-
-    elif fmt == "2":
-        filename = f"result_{sid}.csv"
-        with open(filename, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=result.keys())
-            writer.writeheader()
-            writer.writerow(result)
-
-    else:
-        filename = f"result_{sid}.json"
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
-
-    print(f"  Results saved to: {filename}")
+# ── FUNCTION 7: Build downloadable CSV content ───────────────
+def build_csv(record):
+    buf    = io.StringIO()
+    flat   = {k: v for k, v in record.items() if k != "answers"}
+    writer = csv.DictWriter(buf, fieldnames=flat.keys())
+    writer.writeheader()
+    writer.writerow(flat)
+    return buf.getvalue()
 
 
-# ── FUNCTION 11: Load and display existing result from file ──
-def load_existing_result():
-    print("\n  Enter 0 to go back to Home.")
-    filename = input("  Enter filename (e.g. result_12345.json): ").strip()
+# ════════════════════════════════════════════════════════════
+# PAGE CONFIG & CUSTOM CSS
+# ════════════════════════════════════════════════════════════
+st.set_page_config(
+    page_title=survey_title,
+    page_icon="🤝",
+    layout="centered"
+)
 
-    if filename == "0":
-        return
+st.markdown("""
+<style>
+    /* Main background */
+    .stApp { background-color: #F0F4F8; }
 
-    if not os.path.exists(filename):
-        print(f"  X File '{filename}' not found.")
-        return
+    /* Header banner */
+    .survey-header {
+        background: linear-gradient(135deg, #1e3a8a, #2563eb);
+        color: white;
+        padding: 28px 32px;
+        border-radius: 14px;
+        margin-bottom: 24px;
+        text-align: center;
+    }
+    .survey-header h1 { font-size: 26px; margin: 0; }
+    .survey-header p  { font-size: 13px; margin: 6px 0 0; opacity: 0.85; }
 
-    if filename.endswith(".json"):
-        with open(filename, "r", encoding="utf-8") as f:
-            result = json.load(f)
-        display_result(result)
+    /* Info card */
+    .info-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px 28px;
+        margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
 
-    elif filename.endswith(".csv"):
-        with open(filename, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            result = next(reader)
-        display_result(result)
+    /* Question card */
+    .q-card {
+        background: white;
+        border-left: 5px solid #2563eb;
+        border-radius: 10px;
+        padding: 22px 26px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .q-number {
+        color: #2563eb;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+    .q-text {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0;
+    }
 
-    elif filename.endswith(".txt"):
-        with open(filename, "r", encoding="utf-8") as f:
-            print(f.read())
+    /* Progress bar custom */
+    .progress-label {
+        font-size: 13px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
 
-    else:
-        print("  X Unsupported file type. Use .json, .csv, or .txt")
+    /* Result card */
+    .result-card {
+        background: white;
+        border-radius: 14px;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+        margin-bottom: 20px;
+    }
+    .result-score {
+        font-size: 52px;
+        font-weight: 800;
+        color: #1e3a8a;
+        margin: 8px 0;
+    }
+    .result-state {
+        font-size: 18px;
+        font-weight: 700;
+        color: #16a34a;
+        margin-bottom: 8px;
+    }
+    .result-advice {
+        font-size: 14px;
+        color: #475569;
+    }
+
+    /* Home button styling */
+    div[data-testid="stButton"] button {
+        border-radius: 8px;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 
-# ── FUNCTION 12: Show all psychological states ───────────────
-def show_states():
-    print("\n" + "=" * 58)
-    print("  POSSIBLE PSYCHOLOGICAL STATES")
-    print("=" * 58)
-    states_info = [
-        ("0-12",  "Very Low Peer Support & Poor Adjustment"),
-        ("13-24", "Low Peer Support & Mild Adjustment Issues"),
-        ("25-36", "Moderate Peer Support & Moderate Adjustment"),
-        ("37-42", "Good Peer Support & Good Adjustment"),
-        ("43-48", "Strong Peer Support & Strong Adjustment"),
-        ("49-54", "Excellent Peer Support & Excellent Adjustment"),
-        ("55-60", "Outstanding Peer Support & Outstanding Adjustment"),
+# ════════════════════════════════════════════════════════════
+# SESSION STATE — tracks which page user is on
+# ════════════════════════════════════════════════════════════
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+
+if "questions" not in st.session_state:
+    st.session_state.questions = load_questions()
+
+if "current_q" not in st.session_state:
+    st.session_state.current_q = 0
+
+if "answers" not in st.session_state:
+    st.session_state.answers = []
+
+if "result" not in st.session_state:
+    st.session_state.result = {}
+
+if "p_name" not in st.session_state:
+    st.session_state.p_name = ""
+
+if "p_dob" not in st.session_state:
+    st.session_state.p_dob = ""
+
+if "p_sid" not in st.session_state:
+    st.session_state.p_sid = ""
+
+
+# ── helper: go to a page ─────────────────────────────────────
+def go_to(page):
+    st.session_state.page = page
+
+
+# ── helper: reset survey completely ─────────────────────────
+def reset_survey():
+    st.session_state.current_q = 0
+    st.session_state.answers   = []
+    st.session_state.result    = {}
+    st.session_state.p_name    = ""
+    st.session_state.p_dob     = ""
+    st.session_state.p_sid     = ""
+    go_to("home")
+
+
+# ── SHARED HEADER ────────────────────────────────────────────
+st.markdown(f"""
+<div class="survey-header">
+    <h1>🤝 {survey_title}</h1>
+    <p>Module: Fundamentals of Programming, 4BUIS008C &nbsp;|&nbsp; v{version}</p>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════
+# PAGE: HOME
+# ════════════════════════════════════════════════════════════
+if st.session_state.page == "home":
+
+    st.markdown("""
+    <div class="info-card">
+        <h3 style="color:#1e3a8a; margin-top:0">Welcome!</h3>
+        <p style="color:#475569; font-size:15px">
+        This survey explores how peer friendships influence your academic
+        motivation and emotional wellbeing. It contains <strong>15 questions</strong>
+        and takes about <strong>3–5 minutes</strong> to complete.
+        Please answer all questions honestly.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📝  Start New Survey", use_container_width=True):
+            go_to("info")
+            st.rerun()
+    with col2:
+        if st.button("📂  Load Existing Results", use_container_width=True):
+            go_to("load")
+            st.rerun()
+
+    st.divider()
+
+    # Psychological states table on home page
+    st.markdown("#### 📊 Possible Psychological States")
+    states_data = [
+        ("0 – 12",  "🔴", "Very Low Peer Support & Poor Adjustment"),
+        ("13 – 24", "🟠", "Low Peer Support & Mild Adjustment Issues"),
+        ("25 – 36", "🟡", "Moderate Peer Support & Moderate Adjustment"),
+        ("37 – 42", "🟢", "Good Peer Support & Good Adjustment"),
+        ("43 – 48", "🟢", "Strong Peer Support & Strong Adjustment"),
+        ("49 – 54", "🟢", "Excellent Peer Support & Excellent Adjustment"),
+        ("55 – 60", "🏆", "Outstanding Peer Support & Outstanding Adjustment"),
     ]
-    for score_range, label in states_info:
-        print(f"  {score_range:<6}  {label}")
-    print("=" * 58)
-    print("  Enter 0 to go back to Home.")
-    input("  Press Enter to continue...")
+
+    # for loop — display all states
+    for score_range, emoji, label in states_data:
+        st.markdown(
+            f"**{score_range}** &nbsp; {emoji} &nbsp; {label}"
+        )
 
 
-# ── FUNCTION 13: View last completed result ──────────────────
-def view_last_result():
-    if len(results_store) == 0:
-        print("\n  No results yet. Complete a survey first.")
-        return
+# ════════════════════════════════════════════════════════════
+# PAGE: INFO (participant details)
+# ════════════════════════════════════════════════════════════
+elif st.session_state.page == "info":
 
-    # get the last added student_id from the dict
-    last_id = list(results_store.keys())[-1]
-    print(f"\n  Showing last result (ID: {last_id})")
-    display_result(results_store[last_id])
+    st.markdown("### 👤 Participant Information")
+    st.markdown(
+        "<p style='color:#64748b'>Please fill in your details carefully. "
+        "All fields are required.</p>",
+        unsafe_allow_html=True
+    )
 
-    print("\n  Would you like to save this result?")
-    print("  1. Yes   2. No")
-    while True:
-        pick = input("  Your choice (1/2): ").strip()
-        if pick == "1":
-            save_result(results_store[last_id])
-            break
-        elif pick == "2":
-            break
+    with st.form("info_form"):
+        name = st.text_input(
+            "Full Name",
+            placeholder="e.g. Sarah O'Connor",
+            help="Letters, spaces, hyphens and apostrophes only"
+        )
+        dob = st.text_input(
+            "Date of Birth (DD/MM/YYYY)",
+            placeholder="e.g. 15/03/2004"
+        )
+        sid = st.text_input(
+            "Student ID",
+            placeholder="e.g. 220012",
+            help="Digits only, minimum 4 digits"
+        )
+
+        col1, col2 = st.columns(2)
+        submitted  = col1.form_submit_button(
+            "✅  Confirm Details", use_container_width=True
+        )
+        go_back    = col2.form_submit_button(
+            "🏠  Home", use_container_width=True
+        )
+
+    if go_back:
+        go_to("home")
+        st.rerun()
+
+    if submitted:
+        # conditional statements — validate all inputs
+        errors = []
+        if not validate_name(name):
+            errors.append("❌ Invalid name. Use letters, spaces, hyphens, or apostrophes only.")
+        if not validate_dob(dob):
+            errors.append("❌ Invalid date. Use DD/MM/YYYY format (e.g. 15/03/2004).")
+        if not validate_sid(sid):
+            errors.append("❌ Student ID must contain digits only (minimum 4 digits).")
+        if sid in completed_ids:
+            errors.append(f"❌ ID {sid} has already completed this survey.")
+
+        if errors:
+            for err in errors:
+                st.error(err)
         else:
-            print("  X Enter 1 or 2.")
+            # save to session
+            st.session_state.p_name = name
+            st.session_state.p_dob  = dob
+            st.session_state.p_sid  = sid
+            go_to("ready")
+            st.rerun()
 
 
-# ── FUNCTION 14: Confirm exit ────────────────────────────────
-def confirm_exit():
-    print("\n  Are you sure you want to exit?")
-    print("  1. Yes, exit   2. No, go back to Home")
-    while True:
-        pick = input("  Your choice (1/2): ").strip()
-        if pick == "1":
-            return True
-        elif pick == "2":
-            return False
-        else:
-            print("  X Enter 1 or 2.")
+# ════════════════════════════════════════════════════════════
+# PAGE: READY (confirmation before starting)
+# ════════════════════════════════════════════════════════════
+elif st.session_state.page == "ready":
+
+    st.markdown(f"""
+    <div class="info-card">
+        <h3 style="color:#1e3a8a; margin-top:0">✅ Ready to Start?</h3>
+        <p style="font-size:15px; color:#334155">
+            Hello, <strong>{st.session_state.p_name}</strong>!
+            Your details have been saved. You are about to begin the survey.
+        </p>
+        <p style="font-size:14px; color:#64748b">
+            📋 &nbsp; <strong>{question_count} questions</strong> &nbsp;|&nbsp;
+            ⏱ &nbsp; Takes about 3–5 minutes &nbsp;|&nbsp;
+            ❗ &nbsp; You must answer every question
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🚀  Start Survey", use_container_width=True):
+            st.session_state.current_q = 0
+            st.session_state.answers   = []
+            go_to("survey")
+            st.rerun()
+    with col2:
+        if st.button("✏️  Edit Details", use_container_width=True):
+            go_to("info")
+            st.rerun()
+    with col3:
+        if st.button("🏠  Home", use_container_width=True):
+            reset_survey()
+            st.rerun()
 
 
-# ── MAIN ─────────────────────────────────────────────────────
-def main():
-    save_questions_to_file()
-    questions = load_questions_from_file()
+# ════════════════════════════════════════════════════════════
+# PAGE: SURVEY (one question at a time)
+# ════════════════════════════════════════════════════════════
+elif st.session_state.page == "survey":
 
-    while survey_active:
-        show_menu()
-        choice = input("  Choose an option (1/2/3/4/5): ").strip()
+    questions  = st.session_state.questions
+    current    = st.session_state.current_q
+    total_qs   = len(questions)             # int
+    q          = questions[current]
 
-        if choice == "1":
-            result = run_survey(questions)
-            if result:
-                display_result(result)
-                save_result(result)
+    # progress bar
+    progress = (current) / total_qs        # float
+    st.markdown(
+        f"<p class='progress-label'>Question {current + 1} of {total_qs}</p>",
+        unsafe_allow_html=True
+    )
+    st.progress(progress)
+
+    # question card
+    st.markdown(f"""
+    <div class="q-card">
+        <div class="q-number">Question {current + 1} of {total_qs}</div>
+        <div class="q-text">{q['text']}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # radio buttons for answer options
+    answer_key = f"answer_{current}"
+    choice = st.radio(
+        "Select your answer:",
+        options=q["options"],
+        index=None,
+        key=answer_key,
+        label_visibility="collapsed"
+    )
+
+    st.write("")
+    col1, col2, col3 = st.columns([2, 1, 1])
+
+    with col1:
+        if st.button("➡️  Next Question" if current < total_qs - 1
+                     else "✅  Finish Survey",
+                     use_container_width=True):
+            # while loop equivalent — block if no answer chosen
+            if choice is None:
+                st.error("❌ Please select an answer before continuing.")
             else:
-                print("  Returning to Home...")
+                idx   = q["options"].index(choice)
+                score = q["scores"][idx]
+                st.session_state.answers.append(score)
+                st.session_state.current_q += 1
 
-        elif choice == "2":
-            load_existing_result()
+                if st.session_state.current_q >= total_qs:
+                    go_to("result")
+                st.rerun()
 
-        elif choice == "3":
-            show_states()
+    with col2:
+        if st.button("🔄  Restart", use_container_width=True):
+            st.session_state.current_q = 0
+            st.session_state.answers   = []
+            st.rerun()
 
-        elif choice == "4":
-            view_last_result()
-
-        elif choice == "5":
-            if confirm_exit():
-                print("\n  Thank you. Goodbye!\n")
-                break
-
-        else:
-            print("  X Invalid option. Please choose 1, 2, 3, 4, or 5.")
+    with col3:
+        if st.button("🏠  Home", use_container_width=True):
+            reset_survey()
+            st.rerun()
 
 
-if __name__ == "__main__":
-    main()
+# ════════════════════════════════════════════════════════════
+# PAGE: RESULT
+# ════════════════════════════════════════════════════════════
+elif st.session_state.page == "result":
+
+    answers    = st.session_state.answers
+    total      = sum(answers)                                    # int
+    percentage = round((total / (question_count * 4)) * 100, 1) # float
+    interp     = interpret_score(total)
+
+    record = {
+        "name":          st.session_state.p_name,
+        "student_id":    st.session_state.p_sid,
+        "date_of_birth": st.session_state.p_dob,
+        "submitted":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_score":   total,
+        "percentage":    percentage,
+        "state":         interp["label"],
+        "advice":        interp["advice"],
+        "answers":       answers,
+        "version":       version
+    }
+
+    completed_ids.add(st.session_state.p_sid)
+    results_store[st.session_state.p_sid] = record
+
+    # result card
+    st.markdown(f"""
+    <div class="result-card">
+        <div style="font-size:20px; color:#64748b">Your Result</div>
+        <div class="result-score">{total} / {question_count * 4}</div>
+        <div style="font-size:16px; color:#94a3b8; margin-bottom:12px">
+            {percentage}% &nbsp;|&nbsp; {interp['emoji']}
+        </div>
+        <div class="result-state">{interp['label']}</div>
+        <div class="result-advice">{interp['advice']}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="info-card">
+        <b>Name:</b> {record['name']} &nbsp;|&nbsp;
+        <b>ID:</b> {record['student_id']} &nbsp;|&nbsp;
+        <b>DOB:</b> {record['date_of_birth']} &nbsp;|&nbsp;
+        <b>Submitted:</b> {record['submitted']}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # download section
+    st.markdown("#### 💾 Download Your Results")
+    col_a, col_b, col_c = st.columns(3)
+
+    with col_a:
+        st.download_button(
+            "⬇ Download JSON",
+            json.dumps(record, indent=2, ensure_ascii=False),
+            file_name=f"result_{record['student_id']}.json",
+            mime="application/json",
+            use_container_width=True
+        )
+    with col_b:
+        st.download_button(
+            "⬇ Download CSV",
+            build_csv(record),
+            file_name=f"result_{record['student_id']}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    with col_c:
+        st.download_button(
+            "⬇ Download TXT",
+            build_txt(record),
+            file_name=f"result_{record['student_id']}.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
+
+    st.write("")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📝  Take Survey Again", use_container_width=True):
+            st.session_state.current_q = 0
+            st.session_state.answers   = []
+            go_to("info")
+            st.rerun()
+    with col2:
+        if st.button("🏠  Back to Home", use_container_width=True):
+            reset_survey()
+            st.rerun()
+
+
+# ════════════════════════════════════════════════════════════
+# PAGE: LOAD EXISTING RESULTS
+# ════════════════════════════════════════════════════════════
+elif st.session_state.page == "load":
+
+    st.markdown("### 📂 Load Existing Results")
+    st.markdown(
+        "<p style='color:#64748b'>Upload a previously saved result file "
+        "to view your results again.</p>",
+        unsafe_allow_html=True
+    )
+
+    uploaded = st.file_uploader(
+        "Upload your result file",
+        type=["json", "csv", "txt"]
+    )
+
+    if uploaded is not None:
+        try:
+            if uploaded.name.endswith(".json"):
+                data = json.load(uploaded)
+                total_s = int(data.get("total_score", 0))
+                pct     = data.get("percentage", 0)
+                interp  = interpret_score(total_s)
+
+                st.markdown(f"""
+                <div class="result-card">
+                    <div style="font-size:18px; color:#64748b">Loaded Result</div>
+                    <div class="result-score">{total_s} / {question_count * 4}</div>
+                    <div style="font-size:15px; color:#94a3b8; margin-bottom:10px">
+                        {pct}% &nbsp; {interp['emoji']}
+                    </div>
+                    <div class="result-state">{data.get('state','')}</div>
+                    <div class="result-advice">{data.get('advice','')}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                st.markdown(f"""
+                <div class="info-card">
+                    <b>Name:</b> {data.get('name','?')} &nbsp;|&nbsp;
+                    <b>ID:</b> {data.get('student_id','?')} &nbsp;|&nbsp;
+                    <b>Submitted:</b> {data.get('submitted','?')}
+                </div>
+                """, unsafe_allow_html=True)
+
+            elif uploaded.name.endswith(".csv"):
+                content = uploaded.read().decode("utf-8")
+                reader  = csv.DictReader(io.StringIO(content))
+                data    = next(reader)
+                st.success("File loaded successfully!")
+                for key, val in data.items():
+                    st.markdown(f"**{key}:** {val}")
+
+            elif uploaded.name.endswith(".txt"):
+                st.text(uploaded.read().decode("utf-8"))
+
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+
+    if st.button("🏠  Back to Home", use_container_width=True):
+        go_to("home")
+        st.rerun()
+
+
+# ── FOOTER ────────────────────────────────────────────────────
+st.divider()
+st.markdown(
+    f"<p style='text-align:center; color:#94a3b8; font-size:12px'>"
+    f"{survey_title} &nbsp;|&nbsp; 4BUIS008C &nbsp;|&nbsp; v{version} &nbsp;|&nbsp; Built with Streamlit</p>",
+    unsafe_allow_html=True
+)
